@@ -4,7 +4,7 @@
 
 Hello there! 👋
 
-I **Mihir Khaitan**am excited to share my **Quant NSE Engine** project, which auto-generates C++ encoder, decoder, and message object code from a YAML schema specifically for the National Stock Exchange (NSE) protocol. It provides complete support for all binary protocol features without introducing the massive overhead of a standard FIX engine. 
+I **Mihir Khaitan** am excited to share my **Quant NSE Engine** project, which auto-generates C++ encoder, decoder, and message object code from a YAML schema specifically for the National Stock Exchange (NSE) protocol. It provides complete support for all binary protocol features without introducing the massive overhead of a standard FIX engine. 
 
 But it doesn't stop at code generation. This project is a complete, end-to-end algorithmic trading infrastructure that incorporates extreme software optimizations (Memory Pools, Lock-Free Queues, AVX SIMD), hardware-level kernel-bypass (eBPF), and a zero-JSON Native JS dashboard.
 
