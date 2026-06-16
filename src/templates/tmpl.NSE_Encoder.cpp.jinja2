@@ -1,0 +1,215 @@
+{%- macro renderCamelCase(field) -%}
+    {# # Converts a field name to camelCase #}
+    {{- field[:1] | lower }}{{ field[1:] -}}
+{%- endmacro -%}
+
+{%- macro renderMemberName(field) -%}
+    {# # Appends an underscore to camelCase field name #}
+    {{- renderCamelCase(field) -}}_
+{%- endmacro -%}
+
+{%- macro renderBaseEncoders() -%}
+    {# # Base encoding functions for different field types #}
+
+    {# # Template for encoding primitive types or enums #}
+    template <typename U>
+    inline typename std::enable_if<std::is_enum<U>::value, void>::type
+    _encode(char *&start, char *end, const U &field, Status &status) noexcept
+    {
+        if (status.getStatus() != StatusEnum::PARSING) return;
+        
+        if (start + sizeof(field) > end)  
+        {
+            status.updateStatus(StatusEnum::BUFFER_OVERFLOW);
+            return;
+        }
+
+        if (field == U::UNKNOWN)
+        {
+            status.updateStatus(StatusEnum::INVALID_OBJECT);
+            return;
+        }
+
+        *reinterpret_cast<U *>(start) = field;
+        start += sizeof(field);
+        status.updateNextStart(start);  
+    }
+
+    template <typename U>
+    inline typename std::enable_if<!std::is_enum<U>::value, void>::type
+    _encode(char *&start, char *end, const U &field, Status &status) noexcept
+    {
+        if (status.getStatus() != StatusEnum::PARSING) return;
+        
+        if (start + sizeof(field) > end)  
+        {
+            status.updateStatus(StatusEnum::BUFFER_OVERFLOW);
+            return;
+        }
+
+        *reinterpret_cast<U *>(start) = field;
+        start += sizeof(field);
+        status.updateNextStart(start);  
+    }
+
+    {# # Specialization for encoding vectors of fields #}
+    template <typename U>
+    void _encode(char *&start, char *end, const std::vector<U> &field, Status &status) noexcept {
+        {# // Early exit if parsing has stopped #}
+        if (status.getStatus() != StatusEnum::PARSING)
+            return;  
+        {# // Encode each element in the vector #}
+        for (const auto &element : field) {
+            _encode(start, end, element, status);
+            if (status.getStatus() != StatusEnum::PARSING) return;  // Exit loop on overflow
+        }
+    }
+
+
+    // Specialization for encoding vectors of fields dependent on bitfields
+    template <typename U, typename B>
+    void _encode(char *&start, char *end, const std::vector<U> &field, const std::vector<B> &bitfields, Status &status) noexcept
+    {
+        if (status.getStatus() != StatusEnum::PARSING)
+            return;  
+
+        for (const auto &element : field)
+        {
+            _encode(start, end, element, bitfields, status);
+            {# # Stop if buffer overflow occurs #}
+            if (status.getStatus() != StatusEnum::PARSING)
+                return;  
+        }
+    }
+
+    {# # Specialization for encoding fixed-size character arrays #}
+    template <size_t len>
+    void _encode(char *&start, char *end, const std::array<char, len> &field, Status &status) noexcept
+    {
+        {# # Exit early if not parsing #}
+        if (status.getStatus() != StatusEnum::PARSING)
+            return;  
+
+        for (const auto &element : field)
+        {
+            _encode(start, end, element, status);
+            {# # Stop if buffer overflow occurs #}
+            if (status.getStatus() != StatusEnum::PARSING)
+                return;  
+        }
+    }
+{%- endmacro -%}
+
+{%- macro renderMembers(prefix, data) -%}
+    {# # Generate encoding logic for each member in a message or group #}
+    {%- set firstOptional = [true] -%}
+    {%- for member, details in data.Fields.items() -%}
+        {%- set var = renderCamelCase(prefix) -%}
+
+        {%- if details is string and 'Enum' not in details -%}
+            {%- if 'metaData' in data and 'hasOptional' in data.metaData -%}
+                {# # Check for optional bitfield presence #}
+                if (group{{data.metaData.hasOptional}} [static_cast<uint8_t>({{data.metaData.message}}BitfieldIdx::{{member|upper}})].get{{data.metaData.message}}Bitfield() & (1 << static_cast<uint8_t>({{data.metaData.message}}BitIdx::{{member|upper}})))
+                {
+            {%- else -%}
+                {%- if firstOptional -%}
+                    {# # Initialize bitfields for optional fields #}
+                    {%- do firstOptional.pop() -%}
+                    auto bitfields = {{var}}.getGroup{{details}}();
+                    size_t bitfieldIdx = 0;
+                    size_t bitIdx = 0;
+                {%- endif -%}
+                bitfieldIdx = static_cast<uint8_t>({{prefix}}BitfieldIdx::{{member|upper}});
+                bitIdx = static_cast<uint8_t>({{prefix}}BitIdx::{{member|upper}});
+                if (bitfields.size() > bitfieldIdx and bitfields[bitfieldIdx].get{{prefix}}Bitfield() & (1 << bitIdx))
+                {
+            {%- endif -%}
+        {%- endif -%}
+
+        {%- if yamlData['Fields'][member]['dataType'] == 'char*' -%}
+            {# # Encode fixed-size character array #}
+            _encode(start, end, {{var}}.get{{member}}(), status);
+        {%- else -%}
+            {# # Encode primitive fields or groups #}
+            _encode(start, end, {{var}}.get{{member}}(), status);
+
+            {%- if details is mapping and 'ParamGroups' in details -%}
+                {%- for group, groupSize in details.ParamGroups.items() -%}
+                    {%- if 'metaData' in yamlData['Groups'][group] and 'hasOptional' in yamlData['Groups'][group]['metaData'] -%}
+                        {# # Encode parameter groups with optional fields #}
+                        _encode(start, end, {{var}}.getGroup{{group}}(), {{var}}.getGroup{{yamlData['Groups'][group].metaData.hasOptional}}(), status);
+                    {%- else -%}
+                        {# # Encode regular parameter groups #}
+                        _encode(start, end, {{var}}.getGroup{{group}}(), status);
+                    {%- endif -%}
+                {%- endfor -%}
+            {%- endif -%}
+        {%- endif -%}
+
+        {%- if details is string and 'Enum' not in details -%}
+        {# # Close the optional field block #}
+            }  
+        {%- endif -%}
+    {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro renderGroups(data) -%}
+    {# # Generate encoding functions for groups #}
+    {%- for name, details in data.items() -%}
+        // Specific encode function for Group{{name}} class {{"\n"}}
+        {# encode for group with optional fields, and for normal group #}
+        {%- if 'metaData' in details and 'hasOptional' in details.metaData -%}
+            // Specific encode function for Group{{name}} class with optional fields{{"\n"}}
+            inline void _encode(char*& start, char* end, const Group{{name}}& group{{(name)}}, const std::vector<Group{{details.metaData.hasOptional}}>& group{{details.metaData.hasOptional}}, Status& status) noexcept
+        {%- else -%}
+            inline void _encode(char*& start, char* end, const Group{{name}}& group{{(name)}}, Status& status) noexcept
+        {%- endif -%}
+        {
+            {# # Exit early if not parsing #}
+            if (status.getStatus() != StatusEnum::PARSING)
+                return;  
+            {{renderMembers("Group" + (name), details)}}
+        }
+    {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro renderMessages(data) -%}
+    {# # Generate encoding functions for messages #}
+    {%- for name, details in data.items() -%}
+        void _encode(char*& start, char* end, const {{name}}& {{renderCamelCase(name)}}, Status& status) noexcept
+        {
+            {{renderMembers(name, details)}}
+        }
+    {%- endfor -%}
+{%- endmacro -%}
+
+#pragma once
+#include "NSE_Msgs.h"
+#include "../../../../common/status.h"
+#include "../../../../common/utils.h"
+{{"\n"}}
+
+{# # Encoder class responsible for encoding various message types into binary format #}
+template <typename HandlerType>
+class Encoder {
+    {{renderBaseEncoders()}}
+    {{renderGroups(yamlData.get('Groups', {}))}}
+    {{renderMessages(yamlData.get('Messages', {}))}}
+public:
+    {# # Public function to encode any message type #}
+    template <typename T>
+    void encode(const std::vector<char> &buffer, const T &msg, Status &status)
+    {
+        char *start = const_cast<char *>(buffer.data());
+        char *end = start + buffer.size();
+        HandlerType handler;
+        _encode(start, end, msg, status);
+
+        {# # Mark status as complete if parsing succeeded #}
+        if (status.getStatus() == StatusEnum::PARSING)
+            status.updateStatus(StatusEnum::COMPLETE);
+        handler(status);
+    }
+};
+
+{# // EOF #}

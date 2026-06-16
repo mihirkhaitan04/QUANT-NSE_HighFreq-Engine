@@ -1,0 +1,146 @@
+Messages:
+  SignOnRequest:
+    Fields:
+      TransactionCode: Enums::Transcodes::SIGN_ON_REQUEST_IN  #2
+      LogTime:                                                #4
+      AlphaChar:                                              #2
+      UserId:                                                 #4
+      ErrorCode:                                              #2
+      Timestamp:                                              #8
+      TimeStamp1:                                             #8
+      TimeStamp2:                                             #8
+      MessageLength:                                          #2
+
+      userId:                                                 #4   
+      Reserved_SOR1:                                          #8
+      Password:                                               #8
+      Reserved_SOR2:                                          #8
+      NewPassword:                                            #8
+      TraderName:                                             #26
+      LastPasswordChangeDate:                                 #4
+      BrokerId:                                               #5 
+      Reserved_SOR3:                                          #3
+      VersionNumber:                                          #4
+      Reserved_SOR4:                                          #66
+      WsClassName:                                            #14
+      Reserved_SOR5:                                          #7
+      BrokerName:                                             #25
+      ReservedEnd_SOR1:                                       #16
+      ReservedEnd_SOR2:                                       #16
+      ReservedEnd_SOR3:                                       #16
+
+  OrderEntryRequest:
+    Fields:
+      TransactionCode: Enums::Transcodes::MS_OE_REQUEST       #2
+      LogTime:                                                #4
+      AlphaChar:                                              #2
+      UserId:                                                 #4
+      ErrorCode:                                              #2
+      Timestamp:                                              #8
+      TimeStamp1:                                             #8
+      TimeStamp2:                                             #8
+      MessageLength:                                          #2
+      
+      ParticipantType:                                        #1
+      Reserved_OER1:                                          #13
+      TokenNo:                                                #4
+      InstrumentName:                                         #6
+      Symbol:                                                 #10
+      ExpiryDate:                                             #4  
+      StrikePrice:                                            #4
+      OptionType:                                             #2
+      CALevel:                                                #2
+      Reserved_OER2:                                          #10
+      OrderType:                                              #2
+      OrderNumber:                                            #8
+      AccountNumber:                                          #10
+      BookType:                                               #2
+      Buy_SellIndicator:                                      #2
+      DisclosedVolume:                                        #4
+      Reserved_OER3:                                          #8
+      Volume:                                                 #4
+      Reserved_OER4:                                          #4
+      Price:                                                  #4
+      TriggerPrice:                                           #4
+      GoodTillDate:                                           #4
+      Reserved_OER5:                                          #49
+      Open_Close:                                             #1
+      Settlor:                                                #12
+      Pro_ClientIndicator:                                    #2
+      SettlementPeriod:                                       #2
+      Reserved_OER6:                                          #22
+      PAN:                                                    #10
+      Reserved_OER7:                                          #66
+
+
+Enums:
+  Transcodes:
+    data:
+      SIGN_ON_REQUEST_IN : 2300
+      MS_OE_REQUEST: 2000
+    dataType: uint16_t
+
+Fields:
+# Basic header mssg
+  MessageLength:             { dataType: int16_t }
+  TransactionCode:           { dataType: int16_t }
+  LogTime:                   { dataType: int32_t }
+  AlphaChar:                 { dataType: char*, dataLen: 2 }
+  UserId:                    { dataType: int32_t }
+  userId:                    { dataType: int32_t }
+  ErrorCode:                 { dataType: int16_t }
+  Timestamp:                 { dataType: int64_t }
+  TimeStamp1:                { dataType: int64_t }
+  TimeStamp2:                { dataType: int64_t }
+# SignOnRequest code
+  Reserved_SOR1:             { dataType: char*, dataLen: 8 }
+  Password:                  { dataType: char*, dataLen: 8 }
+  Reserved_SOR2:             { dataType: char*, dataLen: 8 }
+  NewPassword:               { dataType: char*, dataLen: 8 }
+  TraderName:                { dataType: char*, dataLen: 26 }
+  LastPasswordChangeDate:    { dataType: int32_t }
+  BrokerId:                  { dataType: char*, dataLen: 5 }
+  Reserved_SOR3:             { dataType: char*, dataLen: 3 }
+  VersionNumber:             { dataType: int32_t }
+  Reserved_SOR4:             { dataType: char*, dataLen: 66 }
+  WsClassName:               { dataType: char*, dataLen: 14 }
+  Reserved_SOR5:             { dataType: char*, dataLen: 7 }
+  BrokerName:                { dataType: char*, dataLen: 25 }
+  ReservedEnd_SOR1:          { dataType: char*, dataLen: 16 }
+  ReservedEnd_SOR2:          { dataType: char*, dataLen: 16 } 
+  ReservedEnd_SOR3:          { dataType: char*, dataLen: 16 } 
+# Order Request
+  ParticipantType:           { dataType: char*, dataLen: 1 }
+  Reserved_OER1:             { dataType: char*, dataLen: 13 }
+  TokenNo:                   { dataType: int32_t } 
+  InstrumentName:            { dataType: char*, dataLen: 6 }
+  Symbol:                    { dataType: char*, dataLen: 10 }
+  ExpiryDate:                { dataType: int32_t }
+  StrikePrice:               { dataType: int32_t }
+  OptionType:                { dataType: char*, dataLen: 2 }
+  CALevel:                   { dataType: int16_t }      
+  Reserved_OER2:             { dataType: char*, dataLen: 10 }
+  OrderType:                 { dataType: int16_t }
+  OrderNumber:               { dataType: int64_t }  
+  AccountNumber:             { dataType: char*, dataLen: 10 }
+  BookType:                  { dataType: int16_t }
+  Buy_SellIndicator:         { dataType: int16_t }
+  DisclosedVolume:           { dataType: int32_t }    
+  Reserved_OER3:             { dataType: char*, dataLen: 8 }
+  Volume:                    { dataType: int32_t }
+  Reserved_OER4:             { dataType: char*, dataLen: 4 }
+  Price:                     { dataType: int32_t }
+  TriggerPrice:              { dataType: int32_t }
+  GoodTillDate:              { dataType: int32_t }  
+  Reserved_OER5:             { dataType: char*, dataLen: 49 }
+  Open_Close:                { dataType: char*, dataLen: 1 }
+  Settlor:                   { dataType: char*, dataLen: 12 }   
+  Pro_ClientIndicator:       { dataType: int16_t }
+  SettlementPeriod:          { dataType: int16_t }
+  Reserved_OER6:             { dataType: char*, dataLen: 22 }
+  PAN:                       { dataType: char*, dataLen: 10 }
+  Reserved_OER7:             { dataType: char*, dataLen: 66 }
+
+
+
+

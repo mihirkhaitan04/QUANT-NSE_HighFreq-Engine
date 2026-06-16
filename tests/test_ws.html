@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket NSE Test</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #00FF00; padding: 20px; }
+        #log { white-space: pre-wrap; word-wrap: break-word; }
+        .info { color: #88CCFF; }
+        .data { color: #FFCC00; }
+    </style>
+</head>
+<body>
+    <h2>Mock Web Client (Pillar 4)</h2>
+    <p class="info">Connecting to local C++ WebSocket server on port 8080...</p>
+    <div id="log"></div>
+
+    <script>
+        const logEl = document.getElementById('log');
+        function log(msg, className='info') {
+            logEl.innerHTML += `<div class="${className}">${new Date().toISOString().split('T')[1].split('.')[0]} - ${msg}</div>`;
+        }
+
+        const ws = new WebSocket('ws://localhost:8080');
+        ws.binaryType = 'arraybuffer'; // We want raw binary bytes!
+
+        ws.onopen = () => log('Connected to Trading Engine!');
+        ws.onclose = () => log('Connection closed.', 'info');
+        ws.onerror = (err) => log('WebSocket Error observed.', 'info');
+
+        ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                const bytes = new Uint8Array(event.data);
+                // Convert bytes to hex string for display
+                const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                
+                // Also attempt to extract characters if it's an ACK (just for demo)
+                const text = new TextDecoder().decode(bytes);
+
+                log(`Received ${bytes.length} bytes of raw binary:`, 'info');
+                log(`[HEX] ${hex}`, 'data');
+                if (text.includes("ACK")) {
+                    log(`[TXT] ${text}`, 'data');
+                }
+            } else {
+                log('Received non-binary data: ' + event.data, 'data');
+            }
+        };
+    </script>
+</body>
+</html>
