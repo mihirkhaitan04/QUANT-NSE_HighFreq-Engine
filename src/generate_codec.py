@@ -3,6 +3,7 @@ import sys
 import yaml
 import shutil
 import argparse
+import subprocess
 from jinja2 import Environment, FileSystemLoader
 
 template_files = [ "tmpl.NSE_Msgs.cpp.jinja2", "tmpl.NSE_Encoder.cpp.jinja2", 
@@ -45,6 +46,13 @@ def create_files(config_file, preview=False, create=False):
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             with open(output_file, 'w') as file:
                 file.write(template.render(yamlData=yamlData))
+            
+            # Format the auto-generated code automatically
+            try:
+                subprocess.run(["clang-format", "-i", output_file], check=True)
+                print(f"Successfully generated and formatted: {output_file}")
+            except Exception as e:
+                print(f"Warning: Could not format {output_file}. Is clang-format installed? Error: {e}")
 
 def main():
     parser = argparse.ArgumentParser(
