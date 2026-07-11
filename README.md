@@ -98,6 +98,6 @@ This tool provides a clean, automated solution for generating C++ code for the N
 ---
 
 **PS: Code Formatting**
-The auto-generated C++ code may require formatting. Feel free to use tools like `clang-format` to automatically format the code for consistency and readability.
+The Python generator (`generate_codec.py`) is now enhanced to automatically invoke `clang-format` under the hood. Newly generated C++ struct, encoder, and decoder headers are formatted instantly, ensuring flawless consistency with modern C++ standards right out of the box!
 
 Feel free to hit me up with new ideas or queries regarding my project.
