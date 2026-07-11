@@ -12,20 +12,14 @@ Think of it as: **Elite codegen for low-latency NSE trading, with hardware-level
 
 ---
 
-## 🚀 Recent Updates
-* **Implemented C++ Handlers (`NSE_Handler.h`)**: The `DefaultNSEHandler` now fully unpacks `SignOnRequest` and `OrderEntryRequest`, executing rapid pre-trade risk checks (e.g., hardcoded volume thresholds) while gracefully emitting `Status` codes instead of slow C++ exceptions.
-* **Linux/Docker eBPF Migration**: The kernel shield is now fully containerized. You can seamlessly compile and inject the XDP drop hook into any Linux machine with a single `docker-compose up kernel-shield --build` command.
-
----
-
 ## ✨ Key Features
 
 This tool is designed to automate the process of generating C++ code for different versions of the NSE protocol while operating at microsecond latencies. Key features include:
 
-### 1. Automated Code Generation (Pillar 1)
+### 1. Automated Code Generation & Event Handling (Pillar 1)
 * **Constant Fields:** Automatically handles fields that are fixed in value.
 * **Constrained & Optional Fields:** Flexibly handles fields with predefined values or those that may not appear in a message.
-* **Error Handling:** Errors are gracefully populated in a `Status` object instead of throwing C++ exceptions (which destroy low-latency performance).
+* **Error Handling & Pre-Trade Risk:** C++ Handlers (`NSE_Handler.h`) rapidly unpack requests (`SignOnRequest`, `OrderEntryRequest`) and execute pre-trade risk checks (e.g. volume thresholds). Errors are gracefully populated in a `Status` object instead of throwing slow C++ exceptions.
 
 ### 2. Extreme C++ Optimizations (Pillar 2)
 * **Zero-Allocation Memory Pools:** Bypasses slow OS `malloc`/`new` calls by pre-allocating memory arenas at startup. Fetches memory in ~1 nanosecond.
@@ -35,6 +29,7 @@ This tool is designed to automate the process of generating C++ code for differe
 
 ### 3. eBPF Kernel Shield (Pillar 3)
 * **Hardware-Level Risk Checks:** A pure `C` XDP module injected directly into the Linux Network Interface Card (NIC) driver. It inspects binary trades and drops "fat-finger" errors in **nanoseconds**, before the OS kernel even allocates memory.
+* **Containerized Deployment:** Fully migrated to a Linux/Docker environment. You can seamlessly compile and inject the XDP drop hook into any Linux machine with a single `docker-compose up` command, operating directly in the host network namespace.
 
 ### 4. Zero-JSON Dashboard (Pillar 4)
 * **Binary WebSockets:** Instead of wasting CPU cycles converting data to JSON strings for the UI, the engine blasts raw binary hex over WebSockets. The React-style frontend uses native Javascript `DataView` to read memory offsets directly in the browser!
