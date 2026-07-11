@@ -12,6 +12,12 @@ Think of it as: **Elite codegen for low-latency NSE trading, with hardware-level
 
 ---
 
+## 🚀 Recent Updates
+* **Implemented C++ Handlers (`NSE_Handler.h`)**: The `DefaultNSEHandler` now fully unpacks `SignOnRequest` and `OrderEntryRequest`, executing rapid pre-trade risk checks (e.g., hardcoded volume thresholds) while gracefully emitting `Status` codes instead of slow C++ exceptions.
+* **Linux/Docker eBPF Migration**: The kernel shield is now fully containerized. You can seamlessly compile and inject the XDP drop hook into any Linux machine with a single `docker-compose up kernel-shield --build` command.
+
+---
+
 ## ✨ Key Features
 
 This tool is designed to automate the process of generating C++ code for different versions of the NSE protocol while operating at microsecond latencies. Key features include:
@@ -62,7 +68,14 @@ g++ -std=c++11 -mavx2 -o trading_engine src/engine/main.cpp -I src -lws2_32 -lcr
 2. Start the Engine: `.\trading_engine.exe`
 3. Open `frontend/index.html` in any web browser to view the live binary decoding dashboard!
 
-*(Note: The eBPF shield `src/kernel/load_bpf.sh` is designed for Linux/Docker environments).*
+### Step 4: Run eBPF Kernel Shield (Linux/Docker)
+Deploy the hardware-level risk checks on a Linux production server using the new Docker setup:
+
+```bash
+# Deploys the eBPF shield in a privileged host-network container
+docker-compose up kernel-shield --build
+```
+*(This automatically compiles `risk_check.c` with clang/llvm and injects the XDP module into your host network interface!)*
 
 ---
 
