@@ -78,11 +78,12 @@ docker-compose up kernel-shield --build
 
 Here’s how the project is organized for maximum clarity and extreme low-latency design:
 
+* **`docker-compose.yml`**: Orchestration file to deploy the eBPF Kernel Shield into a privileged host-network Linux container.
 * **`specs/`**: Contains the `NSE_SPECS_9_38.yaml` which acts as the Single Source of Truth.
 * **`src/generator/`**: Contains the Python `generate_codec.py` and Jinja2 templates (Message Class, Encoder, Decoder).
 * **`src/codecs/NSE/`**: The auto-generated C++ code based strictly on the YAML blueprint.
 * **`src/engine/`**: The core execution engine. Contains the multi-threaded `main.cpp`, `memory_pool.h`, and `ring_buffer.h`.
-* **`src/kernel/`**: Contains the `risk_check.c` eBPF module.
+* **`src/kernel/`**: Contains the `risk_check.c` eBPF module along with its `Dockerfile` and `load_bpf.sh` deployment script.
 * **`frontend/`**: Contains the "God-Tier" professional Dark Mode dashboard that parses the binary data natively.
 
 ---
