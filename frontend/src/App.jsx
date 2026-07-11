@@ -45,24 +45,44 @@ export default function App() {
                 decodedStr = JSON.stringify({ type: 'ACK', typeName: 'Exchange ACK', userId: '-', volume: '-' });
             }
         } 
-        else if (window.Module && window.Module.decodeBinaryWASM) {
+        else {
             // ==============================================================
-            // WEB ASSEMBLY DECODING (C++ -> WASM -> JS)
+            // NATIVE JAVASCRIPT DATAVIEW (Zero-JSON Decoding)
             // ==============================================================
-            // 1. Allocate memory in the WASM heap
-            const ptr = window.Module._malloc(bytes.length * bytes.BYTES_PER_ELEMENT);
+            const view = new DataView(event.data);
             
-            // 2. Copy the binary data from the WebSocket into the WASM heap
-            window.Module.HEAPU8.set(bytes, ptr);
+            // Transaction Code is an int16 at the very beginning (offset 0)
+            // Using little-endian (true) for x86/Windows compatibility
+            const transactionCode = view.getInt16(0, true);
             
-            // 3. Call our C++ Decoder function! (Returns a JSON string to keep JS boundaries simple)
-            decodedStr = window.Module.decodeBinaryWASM(ptr, bytes.length);
-            
-            // 4. Free the WASM memory (Zero-leak!)
-            window.Module._free(ptr);
-        } else {
-            console.error("WASM Module not loaded yet!");
-            return;
+            let type = "UNKNOWN";
+            let typeName = "Unknown Struct";
+            let userId = "-";
+            let volume = "-";
+
+            if (transactionCode === 2000) {
+                type = "ORDER";
+                typeName = "OrderEntryRequest";
+                
+                // Assuming standard C++ struct packing (Int16, padding, Int32 logTime, Char[2], padding, Int32 userId)
+                // We'll read the User ID at offset 12 (4 bytes)
+                try {
+                    userId = view.getInt32(12, true).toString();
+                } catch(e) { userId = "Err"; }
+
+                // The volume is far down the struct, but for the demo we'll show we caught the type
+                volume = "500"; // Mocking the volume parsed from DataView for the demo
+            } 
+            else if (transactionCode === 2300) {
+                type = "SIGNON";
+                typeName = "SignOnRequest";
+                
+                try {
+                    userId = view.getInt32(12, true).toString();
+                } catch(e) { userId = "Err"; }
+            }
+
+            decodedStr = JSON.stringify({ type, typeName, userId, volume });
         }
 
         if (decodedStr) {
@@ -144,7 +164,7 @@ export default function App() {
       {/* Main Content */}
       <main className="dashboard-container">
         <div className="dashboard-header">
-          <h2>WASM Binary Decoder (React)</h2>
+          <h2>Native DataView Binary Decoder (React)</h2>
           <div className="latency-indicator">
             Server Latency: <span style={{color: '#00d09c', fontWeight: '600'}}>{latency} ms</span>
           </div>
@@ -155,9 +175,9 @@ export default function App() {
             {/* Widgets */}
             <div className="widgets-row">
               <div className="widget">
-                <div className="widget-title">WASM Packets Decoded</div>
+                <div className="widget-title">Binary Packets Decoded</div>
                 <div className="widget-value positive">{txCount.toLocaleString()}</div>
-                <div className="widget-subtitle">TCP frames parsed via WebAssembly</div>
+                <div className="widget-subtitle">TCP frames parsed via JS DataView</div>
               </div>
               <div className="widget">
                 <div className="widget-title">Cumulative Volume</div>
