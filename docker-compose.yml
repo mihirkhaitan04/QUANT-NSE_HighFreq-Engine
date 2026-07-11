@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  # ==============================================================
+  # Kernel Shield (eBPF/XDP)
+  # ==============================================================
+  kernel-shield:
+    build:
+      context: ./src/kernel
+      dockerfile: Dockerfile
+    # eBPF requires privileged access to interact with the host kernel
+    privileged: true
+    # Use host networking so the XDP module attaches to the actual host NIC
+    network_mode: "host"
+    environment:
+      # The interface to attach the XDP shield to. Defaults to eth0.
+      # Change this if your Linux host uses a different interface name (e.g. enp3s0)
+      - INTERFACE=eth0

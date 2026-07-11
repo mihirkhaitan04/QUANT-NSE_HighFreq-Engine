@@ -13,7 +13,7 @@
 set -e
 
 # Configuration
-INTERFACE="eth0"
+INTERFACE="${INTERFACE:-eth0}"
 BPF_SOURCE="risk_check.c"
 BPF_OBJECT="risk_check.o"
 
