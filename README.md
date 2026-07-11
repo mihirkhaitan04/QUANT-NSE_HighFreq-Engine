@@ -32,7 +32,8 @@ This tool is designed to automate the process of generating C++ code for differe
 * **Containerized Deployment:** Fully migrated to a Linux/Docker environment. You can seamlessly compile and inject the XDP drop hook into any Linux machine with a single `docker-compose up` command, operating directly in the host network namespace.
 
 ### 4. Zero-JSON Dashboard (Pillar 4)
-* **Binary WebSockets:** Instead of wasting CPU cycles converting data to JSON strings for the UI, the engine blasts raw binary hex over WebSockets. The React-style frontend uses native Javascript `DataView` to read memory offsets directly in the browser!
+* **Binary WebSockets:** Instead of wasting CPU cycles converting data to JSON strings for the UI, the engine blasts raw binary hex over WebSockets. 
+* **Native JS `DataView` Parsing:** The React frontend securely intercepts the raw binary array buffers and uses native JavaScript `DataView` to parse memory offsets directly (e.g., extracting transaction codes and IDs). This guarantees zero-latency rendering without complex WebAssembly wrappers.
 
 ---
 
@@ -61,7 +62,13 @@ g++ -std=c++11 -mavx2 -o trading_engine src/engine/main.cpp -I src -lws2_32 -lcr
 ### Step 3: Run the Live Simulation
 1. Start the Exchange: `.\mock_exchange.exe`
 2. Start the Engine: `.\trading_engine.exe`
-3. Open `frontend/index.html` in any web browser to view the live binary decoding dashboard!
+3. Start the Frontend Dashboard:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*(Navigate to the local URL provided by Vite to watch the React UI natively decode the binary packets in real-time!)*
 
 ### Step 4: Run eBPF Kernel Shield (Linux/Docker)
 Deploy the hardware-level risk checks on a Linux production server using the new Docker setup:
