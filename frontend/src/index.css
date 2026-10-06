@@ -1,3 +1,10 @@
+/* ===================================================================
+ *  index.css  —  Quant NSE Production Design System
+ *  Groww-inspired Dark Mode + Premium Trading UI
+ * =================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap');
+
 :root {
     /* Groww-inspired Dark Mode Palette */
     --bg-base: #121212;
@@ -121,11 +128,13 @@ body {
     height: 8px;
     border-radius: 50%;
     background-color: var(--text-tertiary);
+    transition: background-color 0.3s;
 }
 
 .status-dot.connected {
     background-color: var(--brand-primary);
     box-shadow: 0 0 8px var(--brand-primary-light);
+    animation: pulse-dot 2s infinite;
 }
 
 .status-dot.error {
@@ -143,6 +152,11 @@ body {
     font-weight: 600;
     color: var(--text-primary);
     cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.profile-circle:hover {
+    background-color: var(--bg-surface-hover);
 }
 
 /* ================= Main Dashboard ================= */
@@ -329,7 +343,7 @@ body {
     text-overflow: ellipsis;
 }
 
-/* Animations */
+/* ================= Animations ================= */
 @keyframes fadeInRow {
     from {
         opacity: 0;
@@ -345,4 +359,28 @@ body {
 
 .new-row {
     animation: fadeInRow 0.5s ease-out forwards;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 4px var(--brand-primary-light); }
+    50% { box-shadow: 0 0 12px var(--brand-primary); }
+}
+
+/* ================= Responsive ================= */
+@media (max-width: 768px) {
+    .top-nav {
+        padding: 0 16px;
+    }
+
+    .nav-left, .nav-right {
+        gap: 16px;
+    }
+
+    .widgets-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .dashboard-container {
+        padding: 20px 12px;
+    }
 }

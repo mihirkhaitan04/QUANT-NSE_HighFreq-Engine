@@ -3,27 +3,100 @@ import './index.css';
 
 const WS_URL = 'ws://localhost:8080';
 
+// ===================================================================
+// Holdings Data (Static portfolio for the Investments view)
+// ===================================================================
+const HOLDINGS = [
+  { asset: 'HDFCBANK', qty: 50, avgPrice: 1600.00, ltp: 1640.50, pnl: 2025.00 },
+  { asset: 'RELIANCE', qty: 20, avgPrice: 2850.00, ltp: 2900.25, pnl: 1005.00 },
+  { asset: 'INFY',     qty: 100, avgPrice: 1450.00, ltp: 1444.20, pnl: -580.00 },
+];
+
+const PORTFOLIO_VALUE = 124500.00;
+const TOTAL_INVESTED  = 122050.00;
+const PORTFOLIO_GAIN  = PORTFOLIO_VALUE - TOTAL_INVESTED;
+const PORTFOLIO_PCT   = ((PORTFOLIO_GAIN / TOTAL_INVESTED) * 100).toFixed(1);
+
+// ===================================================================
+// Binary Decoder — Native JavaScript DataView (Zero-JSON)
+// Falls back to JS when WASM module is unavailable
+// ===================================================================
+function decodeNSEBinary(arrayBuffer) {
+  const bytes = new Uint8Array(arrayBuffer);
+
+  // 3-byte ACK string
+  if (bytes.length === 3) {
+    const text = new TextDecoder().decode(bytes);
+    if (text === 'ACK') {
+      return { type: 'ACK', typeName: 'Exchange ACK', userId: '-', volume: '-' };
+    }
+  }
+
+  // Try WASM first (if Emscripten module is loaded)
+  if (window.Module && typeof window.Module.decodeBinaryWASM === 'function') {
+    try {
+      const ptr = window.Module._malloc(bytes.length);
+      window.Module.HEAPU8.set(bytes, ptr);
+      const jsonStr = window.Module.decodeBinaryWASM(ptr, bytes.length);
+      window.Module._free(ptr);
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      // Fall through to JS DataView
+    }
+  }
+
+  // JS DataView fallback
+  const view = new DataView(arrayBuffer);
+  const transactionCode = view.getInt16(0, true);
+
+  let decoded = { type: 'UNKNOWN', typeName: 'Unknown Struct', userId: '-', volume: '-' };
+
+  if (transactionCode === 2300) {
+    decoded.type = 'SIGNON';
+    decoded.typeName = 'SignOnRequest';
+    try { decoded.userId = view.getInt32(12, true).toString(); } catch (_) { decoded.userId = 'Err'; }
+  } else if (transactionCode === 2000) {
+    decoded.type = 'ORDER';
+    decoded.typeName = 'OrderEntry';
+    try { decoded.userId = view.getInt32(12, true).toString(); } catch (_) { decoded.userId = 'Err'; }
+    if (arrayBuffer.byteLength >= 136) {
+      decoded.volume = view.getInt32(132, true);
+    } else {
+      decoded.volume = 500; // Fallback for shorter payloads in demo mode
+    }
+  }
+
+  return decoded;
+}
+
+function toHexString(buffer) {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes).slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(' ') + '...';
+}
+
+// ===================================================================
+// App Component
+// ===================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('explore');
-  const [status, setStatus] = useState('Disconnected');
+  const [status, setStatus] = useState('Connecting...');
   const [txCount, setTxCount] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
   const [latency, setLatency] = useState('0.00');
   const [trades, setTrades] = useState([]);
-  
+
   const wsRef = useRef(null);
 
+  // ---------------------------------------------------------------
+  // WebSocket connection lifecycle
+  // ---------------------------------------------------------------
   useEffect(() => {
-    // Check if WebAssembly module is loaded
-    // Note: The WASM module (decoder.js) will be loaded via a <script> tag in index.html
-    // and attaches a global 'Module' object to the window.
-    
     function connect() {
       wsRef.current = new WebSocket(WS_URL);
       wsRef.current.binaryType = 'arraybuffer';
 
       wsRef.current.onopen = () => setStatus('Connected');
-      
+
       wsRef.current.onclose = () => {
         setStatus('Disconnected');
         setTimeout(connect, 2000);
@@ -35,192 +108,140 @@ export default function App() {
         setLatency((Math.random() * 2 + 1).toFixed(2));
         setTxCount(prev => prev + 1);
 
-        const bytes = new Uint8Array(event.data);
-        let decodedStr = "";
+        const decoded = decodeNSEBinary(event.data);
+        const hex = toHexString(event.data);
 
-        // Check for 3-byte ACK string first
-        if (bytes.length === 3) {
-            const text = new TextDecoder().decode(bytes);
-            if (text === "ACK") {
-                decodedStr = JSON.stringify({ type: 'ACK', typeName: 'Exchange ACK', userId: '-', volume: '-' });
-            }
-        } 
-        else {
-            // ==============================================================
-            // NATIVE JAVASCRIPT DATAVIEW (Zero-JSON Decoding)
-            // ==============================================================
-            const view = new DataView(event.data);
-            
-            // Transaction Code is an int16 at the very beginning (offset 0)
-            // Using little-endian (true) for x86/Windows compatibility
-            const transactionCode = view.getInt16(0, true);
-            
-            let type = "UNKNOWN";
-            let typeName = "Unknown Struct";
-            let userId = "-";
-            let volume = "-";
-
-            if (transactionCode === 2000) {
-                type = "ORDER";
-                typeName = "OrderEntryRequest";
-                
-                // Assuming standard C++ struct packing (Int16, padding, Int32 logTime, Char[2], padding, Int32 userId)
-                // We'll read the User ID at offset 12 (4 bytes)
-                try {
-                    userId = view.getInt32(12, true).toString();
-                } catch(e) { userId = "Err"; }
-
-                // The volume is far down the struct, but for the demo we'll show we caught the type
-                volume = "500"; // Mocking the volume parsed from DataView for the demo
-            } 
-            else if (transactionCode === 2300) {
-                type = "SIGNON";
-                typeName = "SignOnRequest";
-                
-                try {
-                    userId = view.getInt32(12, true).toString();
-                } catch(e) { userId = "Err"; }
-            }
-
-            decodedStr = JSON.stringify({ type, typeName, userId, volume });
+        if (decoded.volume && decoded.volume !== '-') {
+          setTotalVolume(prev => prev + parseInt(decoded.volume));
         }
 
-        if (decodedStr) {
-            try {
-                const decoded = JSON.parse(decodedStr);
-                const hex = Array.from(bytes).slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join(' ') + '...';
-                
-                if (decoded.volume && decoded.volume !== '-') {
-                    setTotalVolume(prev => prev + parseInt(decoded.volume));
-                }
-
-                setTrades(prev => {
-                    const newTrade = {
-                        id: Date.now() + Math.random(),
-                        time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                        type: decoded.type,
-                        typeName: decoded.typeName,
-                        userId: decoded.userId,
-                        volume: decoded.volume,
-                        hex: hex
-                    };
-                    return [newTrade, ...prev].slice(0, 15);
-                });
-            } catch (e) {
-                console.error("Failed to parse WASM output:", e);
-            }
-        }
+        setTrades(prev => {
+          const newTrade = {
+            id: Date.now() + Math.random(),
+            time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            type: decoded.type,
+            typeName: decoded.typeName,
+            userId: decoded.userId,
+            volume: decoded.volume,
+            hex,
+          };
+          return [newTrade, ...prev].slice(0, 15);
+        });
       };
     }
 
     connect();
-
-    return () => {
-      if (wsRef.current) wsRef.current.close();
-    };
+    return () => { if (wsRef.current) wsRef.current.close(); };
   }, []);
 
+  // ---------------------------------------------------------------
+  // Badge class helper
+  // ---------------------------------------------------------------
   const getBadgeClass = (type) => {
     if (type === 'SIGNON') return 'badge badge-signon';
-    if (type === 'ORDER') return 'badge badge-order';
-    if (type === 'ACK') return 'badge badge-ack';
+    if (type === 'ORDER')  return 'badge badge-order';
+    if (type === 'ACK')    return 'badge badge-ack';
     return 'badge';
   };
 
+  // ---------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------
   return (
     <div className="app-layout">
-      {/* Top Navigation */}
-      <nav className="top-nav">
+
+      {/* =================== Top Navigation =================== */}
+      <header className="top-nav">
         <div className="nav-left">
           <div className="logo">
             <div className="logo-icon"></div>
-            <h1>QuantNSE</h1>
+            <h1>Quant NSE</h1>
           </div>
           <div className="nav-links">
-            <a 
-              className={activeTab === 'explore' ? 'active' : ''} 
+            <a
+              className={activeTab === 'explore' ? 'active' : ''}
               onClick={() => setActiveTab('explore')}
             >
-              Live Feed
+              Explore
             </a>
-            <a 
-              className={activeTab === 'investments' ? 'active' : ''} 
+            <a
+              className={activeTab === 'investments' ? 'active' : ''}
               onClick={() => setActiveTab('investments')}
             >
-              Algorithms
+              Investments
             </a>
           </div>
         </div>
-        
+
         <div className="nav-right">
-          <div className="status-pill">
+          <div className="status-pill" id="connection-status">
             <div className={`status-dot ${status === 'Connected' ? 'connected' : 'error'}`}></div>
             <span>{status}</span>
           </div>
-          <div className="profile-circle">MK</div>
+          <div className="profile-circle">Q</div>
         </div>
-      </nav>
+      </header>
 
-      {/* Main Content */}
+      {/* =================== Main Content =================== */}
       <main className="dashboard-container">
-        <div className="dashboard-header">
-          <h2>Native DataView Binary Decoder (React)</h2>
-          <div className="latency-indicator">
-            Server Latency: <span style={{color: '#00d09c', fontWeight: '600'}}>{latency} ms</span>
-          </div>
-        </div>
 
-        {activeTab === 'explore' ? (
-          <div>
-            {/* Widgets */}
-            <div className="widgets-row">
-              <div className="widget">
-                <div className="widget-title">Binary Packets Decoded</div>
-                <div className="widget-value positive">{txCount.toLocaleString()}</div>
-                <div className="widget-subtitle">TCP frames parsed via JS DataView</div>
-              </div>
-              <div className="widget">
-                <div className="widget-title">Cumulative Volume</div>
-                <div className="widget-value">{totalVolume.toLocaleString()}</div>
-                <div className="widget-subtitle">Shares requested by engine</div>
-              </div>
-              <div className="widget">
-                <div className="widget-title">Memory Allocation</div>
-                <div className="widget-value positive">0 Bytes</div>
-                <div className="widget-subtitle">Zero-allocation C++ memory pools active</div>
+        {/* ----------- Explore View (Live Market Feed) ----------- */}
+        {activeTab === 'explore' && (
+          <div id="view-explore">
+            <div className="dashboard-header">
+              <h2>Live Market Feed</h2>
+              <div className="latency-indicator">
+                Latency: <span style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>{latency} ms</span>
               </div>
             </div>
 
-            {/* Ledger Table */}
+            <div className="widgets-row">
+              <div className="widget">
+                <h3 className="widget-title">Total Traded Volume</h3>
+                <div className="widget-value" id="total-volume">{totalVolume.toLocaleString()}</div>
+                <div className="widget-subtitle positive">+0.00% today</div>
+              </div>
+              <div className="widget">
+                <h3 className="widget-title">Transactions Processed</h3>
+                <div className="widget-value" id="total-tx">{txCount.toLocaleString()}</div>
+                <div className="widget-subtitle">Live stream active</div>
+              </div>
+              <div className="widget">
+                <h3 className="widget-title">System Status</h3>
+                <div className="widget-value positive">Optimal</div>
+                <div className="widget-subtitle">eBPF Shield Active</div>
+              </div>
+            </div>
+
             <div className="ledger-section">
               <div className="ledger-header">
-                <h3>Live Market Feed</h3>
-                <button className="btn-secondary">Export Log</button>
+                <h3>Recent Transactions</h3>
+                <button className="btn-secondary">Export CSV</button>
               </div>
               <div className="table-wrapper">
                 <table className="ledger-table">
                   <thead>
                     <tr>
-                      <th>Time</th>
-                      <th>Message Type</th>
-                      <th>User ID</th>
+                      <th>Timestamp</th>
+                      <th>Type</th>
+                      <th>Trader ID</th>
                       <th>Volume</th>
-                      <th>Raw Hex Binary (First 16 Bytes)</th>
+                      <th>Raw Payload</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody id="trade-table-body">
                     {trades.map(trade => (
                       <tr key={trade.id} className="new-row">
                         <td className="mono-text">{trade.time}</td>
                         <td><span className={getBadgeClass(trade.type)}>{trade.typeName}</span></td>
                         <td className="mono-text">{trade.userId}</td>
-                        <td style={{fontWeight: 600}}>{trade.volume !== '-' ? trade.volume.toLocaleString() : '-'}</td>
+                        <td style={{ fontWeight: 600 }}>{trade.volume !== '-' ? Number(trade.volume).toLocaleString() : '-'}</td>
                         <td className="mono-text hex-cell">{trade.hex}</td>
                       </tr>
                     ))}
                     {trades.length === 0 && (
                       <tr>
-                        <td colSpan="5" style={{textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)'}}>
+                        <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
                           Waiting for binary packets from Trading Engine...
                         </td>
                       </tr>
@@ -230,21 +251,64 @@ export default function App() {
               </div>
             </div>
           </div>
-        ) : (
-          <div style={{
-              backgroundColor: 'var(--bg-surface)', 
-              padding: '60px', 
-              borderRadius: '12px', 
-              textAlign: 'center',
-              border: '1px solid var(--border-color)'
-          }}>
-              <h2 style={{marginBottom: '16px', color: 'var(--brand-primary)'}}>Algorithmic Trading Strategies</h2>
-              <p style={{color: 'var(--text-secondary)', lineHeight: '1.6'}}>
-                  This section will contain controls for your C++ HFT strategies (Market Making, Latency Arbitrage).
-                  <br/>Currently running in fully automated headless mode.
-              </p>
+        )}
+
+        {/* ----------- Investments View (Portfolio) ----------- */}
+        {activeTab === 'investments' && (
+          <div id="view-investments">
+            <div className="dashboard-header">
+              <h2>Your Portfolio</h2>
+            </div>
+
+            <div className="widgets-row" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              <div className="widget">
+                <h3 className="widget-title">Current Value</h3>
+                <div className="widget-value">₹ {PORTFOLIO_VALUE.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                <div className="widget-subtitle positive">
+                  +₹ {PORTFOLIO_GAIN.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({PORTFOLIO_PCT}%)
+                </div>
+              </div>
+              <div className="widget">
+                <h3 className="widget-title">Total Investment</h3>
+                <div className="widget-value">₹ {TOTAL_INVESTED.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                <div className="widget-subtitle">All time</div>
+              </div>
+            </div>
+
+            <div className="ledger-section">
+              <div className="ledger-header">
+                <h3>Holdings</h3>
+              </div>
+              <div className="table-wrapper">
+                <table className="ledger-table">
+                  <thead>
+                    <tr>
+                      <th>Asset</th>
+                      <th>Qty</th>
+                      <th>Avg. Price</th>
+                      <th>LTP</th>
+                      <th>P&amp;L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {HOLDINGS.map(h => (
+                      <tr key={h.asset}>
+                        <td style={{ fontWeight: 600 }}>{h.asset}</td>
+                        <td>{h.qty}</td>
+                        <td>₹ {h.avgPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td>₹ {h.ltp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className={h.pnl >= 0 ? 'positive' : ''} style={h.pnl < 0 ? { color: 'var(--status-error)' } : {}}>
+                          {h.pnl >= 0 ? '+' : ''}₹ {Math.abs(h.pnl).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
+
       </main>
     </div>
   );
